@@ -40,6 +40,8 @@ class AyanDownloaderPro(ctk.CTk):
         self.url_var = ctk.StringVar()
         self.preview_manager = PreviewManager()
         self.thumbnail_manager = ThumbnailManager()
+        self.preview_after_id = None
+        self.selected_quality = None
         self._build_header()
         self._build_main()
         self._build_footer()
@@ -111,6 +113,8 @@ class AyanDownloaderPro(ctk.CTk):
                              placeholder_text_color=TEXT_MUTED,
                              fg_color="transparent", border_width=0, height=54)
         entry.pack(side="left", fill="both", expand=True, padx=(18, 8))
+        entry.bind("<Return>", lambda e: self.load_preview(self.url_var.get()))
+        entry.bind("<KeyRelease>", self._schedule_preview)
         paste_btn = ctk.CTkButton(box, text="📋  Paste", width=110, height=38,
                                   corner_radius=10, font=f(12, "bold"),
                                   fg_color=SURFACE_3, hover_color=BORDER,
@@ -119,13 +123,28 @@ class AyanDownloaderPro(ctk.CTk):
 
     def _paste(self):
         try:
-            url = self.clipboard_get()
+            url = self.clipboard_get().strip()
             self.url_var.set(url)
+
+            if self.preview_after_id:
+                self.after_cancel(self.preview_after_id)
+
             self.load_preview(url)
+
         except Exception:
             pass
 
     def load_preview(self, url):
+        if not url:
+            self.title_lbl.configure(text="Paste a link to preview your media")
+            self.meta_lbl.configure(text="Channel • Duration • Views")
+
+            for widget in self.chips.winfo_children():
+                widget.destroy()
+            self.thumbnail = None
+            self.thumb_label.configure(image=None, text="▶")
+            return
+
         info = self.preview_manager.get_info(url)
 
         if "error" in info:
@@ -138,9 +157,36 @@ class AyanDownloaderPro(ctk.CTk):
         self.meta_lbl.configure(
             text=f'{info["channel"]} • {info["duration"]} sec • {info["views"]:,} views'
         )
+        for widget in self.chips.winfo_children():
+            widget.destroy()
+        self.quality_chips = []
+        for quality in info["qualities"]:
+            chip = ctk.CTkFrame(
+                self.chips,
+                fg_color=SURFACE_3,
+                corner_radius=999,
+                border_width=1,
+                border_color=BORDER,
+                cursor="hand2"
+            )
+            chip.pack(side="left", padx=(0, 6))
+
+            label = ctk.CTkLabel(
+                chip,
+                text=quality,
+                font=f(11, "bold"),
+                text_color=TEXT_DIM
+            )
+            label.pack(padx=10, pady=3)
+
+            chip.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
+            label.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
+
+            self.quality_chips.append((chip, quality))
 
         try:
-            image = self.thumbnail_manager.get_image(info["thumbnail"])
+            print("Loading thumbnail...")
+            image = self.thumbnail_manager.get_image(info["thumbnail"]).copy()
             image = image.resize((180, 104))
 
             self.thumbnail = ctk.CTkImage(
@@ -149,9 +195,24 @@ class AyanDownloaderPro(ctk.CTk):
                 size=(180, 104)
             )
 
-            self.thumb_label.configure(image=self.thumbnail)
+            # Step 1: clear the label so Tkinter sees a real state change
+            self.thumb_label.configure(image=None, text="")
+            # Step 2: apply the new image on the next event-loop tick
+            self.after(0, lambda img=self.thumbnail: self.thumb_label.configure(
+                text="", image=img
+            ))
+            print("Thumbnail applied")
         except Exception as e:
-            print(e)
+            print(f"Thumbnail Error: {e}")
+
+    def _schedule_preview(self, event=None):
+        if self.preview_after_id:
+            self.after_cancel(self.preview_after_id)
+
+        self.preview_after_id = self.after(
+            800,
+            lambda: self.load_preview(self.url_var.get().strip())
+        )
 
     # ---- Preview ----
     def _section_preview(self, parent):
@@ -175,14 +236,8 @@ class AyanDownloaderPro(ctk.CTk):
                      font=f(12), text_color=TEXT_DIM
                      )
         self.meta_lbl.pack(anchor="w", pady=(4, 10))
-        chips = ctk.CTkFrame(info, fg_color="transparent")
-        chips.pack(anchor="w")
-        for label in ("1080p", "720p", "480p", "MP3"):
-            chip = ctk.CTkFrame(chips, fg_color=SURFACE_3, corner_radius=999,
-                                border_width=1, border_color=BORDER)
-            chip.pack(side="left", padx=(0, 6))
-            ctk.CTkLabel(chip, text=label, font=f(11, "bold"),
-                         text_color=TEXT_DIM).pack(padx=10, pady=3)
+        self.chips = ctk.CTkFrame(info, fg_color="transparent")
+        self.chips.pack(anchor="w")
     # ---- Mode cards ----
     def _section_mode(self, parent):
         ctk.CTkLabel(parent, text="Download Mode",
@@ -384,8 +439,18 @@ class AyanDownloaderPro(ctk.CTk):
                            {"text": f"ETA  00:{remaining:02d}"})
                 time.sleep(delay)
         self.after(0, self._show_success)
+
     def _show_success(self):
         self.state_lbl.configure(text="Completed")
         self.prog_card.pack_forget()
         self.success_card.pack(fill="x", pady=(20, 0))
         self.dl_btn.configure(state="normal")
+
+    def select_quality(self, quality):
+        self.selected_quality = quality
+
+        for chip, value in self.quality_chips:
+            if value == quality:
+                chip.configure(fg_color=ACCENT, border_color=ACCENT)
+            else:
+                chip.configure(fg_color=SURFACE_3, border_color=BORDER)

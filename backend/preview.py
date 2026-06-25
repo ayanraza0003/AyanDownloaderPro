@@ -14,13 +14,29 @@ class PreviewManager:
             with YoutubeDL(self.ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
+            allowed = {2160, 1440, 1080, 720, 480, 360, 240, 144}
+
+            qualities = []
+
+            for fmt in info.get("formats", []):
+                height = fmt.get("height")
+
+                if height in allowed:
+                    qualities.append(f"{height}p")
+
+            qualities = sorted(
+                set(qualities),
+                key=lambda x: int(x[:-1]),
+                reverse=True
+            )
+
             return {
                 "title": info.get("title"),
                 "channel": info.get("uploader"),
                 "duration": info.get("duration"),
                 "thumbnail": info.get("thumbnail"),
                 "views": info.get("view_count"),
-                "formats": info.get("formats"),
+                "qualities": qualities,
             }
 
         except Exception as e:
