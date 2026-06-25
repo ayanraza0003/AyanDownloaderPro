@@ -2,6 +2,8 @@ from backend.preview import PreviewManager
 import customtkinter as ctk
 from tkinter import filedialog
 import threading, time, os
+from backend.thumbnail import ThumbnailManager
+from PIL import ImageTk
 # ---------- THEME ----------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
@@ -37,6 +39,7 @@ class AyanDownloaderPro(ctk.CTk):
         self.folder = ctk.StringVar(value=os.path.join(os.path.expanduser("~"), "Downloads"))
         self.url_var = ctk.StringVar()
         self.preview_manager = PreviewManager()
+        self.thumbnail_manager = ThumbnailManager()
         self._build_header()
         self._build_main()
         self._build_footer()
@@ -136,6 +139,20 @@ class AyanDownloaderPro(ctk.CTk):
             text=f'{info["channel"]} • {info["duration"]} sec • {info["views"]:,} views'
         )
 
+        try:
+            image = self.thumbnail_manager.get_image(info["thumbnail"])
+            image = image.resize((180, 104))
+
+            self.thumbnail = ctk.CTkImage(
+                light_image=image,
+                dark_image=image,
+                size=(180, 104)
+            )
+
+            self.thumb_label.configure(image=self.thumbnail)
+        except Exception as e:
+            print(e)
+
     # ---- Preview ----
     def _section_preview(self, parent):
         wrap = ctk.CTkFrame(parent, fg_color=SURFACE_2, corner_radius=16,
@@ -146,8 +163,8 @@ class AyanDownloaderPro(ctk.CTk):
                              fg_color=ACCENT)
         thumb.pack(side="left", padx=12, pady=12)
         thumb.pack_propagate(False)
-        ctk.CTkLabel(thumb, text="▶", font=f(40, "bold"),
-                     text_color="#FFFFFF").pack(expand=True)
+        self.thumb_label = ctk.CTkLabel(thumb, text="", text_color="#FFFFFF")
+        self.thumb_label.pack(expand=True, fill="both")
         info = ctk.CTkFrame(wrap, fg_color="transparent")
         info.pack(side="left", fill="both", expand=True, padx=(6, 16), pady=14)
         self.title_lbl = ctk.CTkLabel(info, text="Paste a link to preview your media",
