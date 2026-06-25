@@ -159,30 +159,54 @@ class AyanDownloaderPro(ctk.CTk):
         )
         for widget in self.chips.winfo_children():
             widget.destroy()
+
         self.quality_chips = []
-        for quality in info["qualities"]:
+
+        if self.mode.get() == "audio":
             chip = ctk.CTkFrame(
+                self.chips,
+                fg_color=ACCENT,
+                corner_radius=999,
+                border_width=1,
+                border_color=ACCENT,
+            )
+            chip.pack(side="left", padx=(0, 6))
+
+            ctk.CTkLabel(
+                chip,
+                text="Best MP3",
+                font=f(11, "bold"),
+                text_color="#FFFFFF",
+            ).pack(padx=10, pady=3)
+
+            self.selected_quality = "bestaudio"
+
+        else:
+            for quality in info["qualities"]:
+                chip = ctk.CTkFrame(
                 self.chips,
                 fg_color=SURFACE_3,
                 corner_radius=999,
                 border_width=1,
                 border_color=BORDER,
                 cursor="hand2"
-            )
-            chip.pack(side="left", padx=(0, 6))
+                )
+                chip.pack(side="left", padx=(0, 6))
 
-            label = ctk.CTkLabel(
+                label = ctk.CTkLabel(
                 chip,
                 text=quality,
                 font=f(11, "bold"),
                 text_color=TEXT_DIM
-            )
-            label.pack(padx=10, pady=3)
+                )
+                label.pack(padx=10, pady=3)
 
-            chip.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
-            label.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
+                chip.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
+                label.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
 
-            self.quality_chips.append((chip, quality))
+                self.quality_chips.append((chip, quality))
+        if info["qualities"]:
+            self.select_quality(info["qualities"][0])
 
         try:
             print("Loading thumbnail...")
@@ -284,6 +308,9 @@ class AyanDownloaderPro(ctk.CTk):
     def _set_mode(self, value):
         self.mode.set(value)
         self._refresh_mode()
+
+        if self.url_var.get().strip():
+            self.load_preview(self.url_var.get().strip())
     def _refresh_mode(self):
         for card in (self.card_video, self.card_audio):
             selected = card._value == self.mode.get()
