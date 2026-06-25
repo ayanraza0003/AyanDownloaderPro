@@ -1,3 +1,4 @@
+from backend.preview import PreviewManager
 import customtkinter as ctk
 from tkinter import filedialog
 import threading, time, os
@@ -35,6 +36,7 @@ class AyanDownloaderPro(ctk.CTk):
         self.mode = ctk.StringVar(value="video")
         self.folder = ctk.StringVar(value=os.path.join(os.path.expanduser("~"), "Downloads"))
         self.url_var = ctk.StringVar()
+        self.preview_manager = PreviewManager()
         self._build_header()
         self._build_main()
         self._build_footer()
@@ -111,11 +113,29 @@ class AyanDownloaderPro(ctk.CTk):
                                   fg_color=SURFACE_3, hover_color=BORDER,
                                   text_color=TEXT, command=self._paste)
         paste_btn.pack(side="right", padx=10)
+
     def _paste(self):
         try:
-            self.url_var.set(self.clipboard_get())
+            url = self.clipboard_get()
+            self.url_var.set(url)
+            self.load_preview(url)
         except Exception:
             pass
+
+    def load_preview(self, url):
+        info = self.preview_manager.get_info(url)
+
+        if "error" in info:
+            self.title_lbl.configure(text="Invalid URL")
+            self.meta_lbl.configure(text=info["error"])
+            return
+
+        self.title_lbl.configure(text=info["title"])
+
+        self.meta_lbl.configure(
+            text=f'{info["channel"]} • {info["duration"]} sec • {info["views"]:,} views'
+        )
+
     # ---- Preview ----
     def _section_preview(self, parent):
         wrap = ctk.CTkFrame(parent, fg_color=SURFACE_2, corner_radius=16,
@@ -130,12 +150,14 @@ class AyanDownloaderPro(ctk.CTk):
                      text_color="#FFFFFF").pack(expand=True)
         info = ctk.CTkFrame(wrap, fg_color="transparent")
         info.pack(side="left", fill="both", expand=True, padx=(6, 16), pady=14)
-        ctk.CTkLabel(info, text="Paste a link to preview your media",
-                     font=f(15, "bold"), text_color=TEXT
-                     ).pack(anchor="w")
-        ctk.CTkLabel(info, text="Channel  •  Duration  •  Views",
+        self.title_lbl = ctk.CTkLabel(info, text="Paste a link to preview your media",
+                 font=f(15, "bold"), text_color=TEXT
+                 )
+        self.title_lbl.pack(anchor="w")
+        self.meta_lbl = ctk.CTkLabel(info, text="Channel  •  Duration  •  Views",
                      font=f(12), text_color=TEXT_DIM
-                     ).pack(anchor="w", pady=(4, 10))
+                     )
+        self.meta_lbl.pack(anchor="w", pady=(4, 10))
         chips = ctk.CTkFrame(info, fg_color="transparent")
         chips.pack(anchor="w")
         for label in ("1080p", "720p", "480p", "MP3"):
