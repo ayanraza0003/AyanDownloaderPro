@@ -1,21 +1,31 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
-*.pyd
 
-venv/
+# Virtual Environment
 .venv/
+venv/
 
-downloads/
-
-*.log
-
+# PyInstaller
 build/
 dist/
 
-*.spec
+# Installer Output
+Installer/
 
-.vscode/settings.json
+# VS Code
+.vscode/
 
+# Logs
+*.log
+
+# Windows
 Thumbs.db
-.DS_Store
+Desktop.ini
+
+# Python cache
+.pytest_cache/
+
+# Environment
+.env
