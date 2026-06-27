@@ -129,6 +129,15 @@ Users are responsible for complying with applicable copyright laws and the terms
 
 ---
 
+## 📄 License
+
+This project is currently **not open source**.
+
+All rights are reserved by the author. No part of this project may be copied, modified, or redistributed without prior written permission.
+
+If you wish to use this project or collaborate, please contact the author through GitHub.
+
+
 # ❤️ Credits
 
 Special thanks to these open-source projects:
