@@ -3,22 +3,35 @@ import customtkinter as ctk
 from tkinter import filedialog
 import threading, time, os
 from backend.thumbnail import ThumbnailManager
-from PIL import ImageTk
+from PIL import Image, ImageTk
+from backend.downloader import Downloader
+import sys
+from pathlib import Path
+
+
+def resource_path(relative_path):
+    """Return absolute path to resource, works for dev and PyInstaller."""
+    try:
+        base_path = Path(sys._MEIPASS)
+    except AttributeError:
+        base_path = Path(__file__).resolve().parent.parent
+
+    return base_path / relative_path
 # ---------- THEME ----------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
 # Palette
 BG          = "#0B0D12"   # deep charcoal
-SURFACE     = "#12151C"   # card base
-SURFACE_2   = "#171B24"   # elevated
-SURFACE_3   = "#1E232E"   # hover / input
-BORDER      = "#262C38"
+SURFACE     = "#0B0B0F"   # card base
+SURFACE_2   = "#15151D"   # elevated
+SURFACE_3   = "#1E1E29"   # hover / input
+BORDER      = "#2A2A38"
 BORDER_SOFT = "#1B2029"
-TEXT        = "#EDEFF4"
-TEXT_DIM    = "#9AA3B2"
+TEXT        = "#FFFFFF"
+TEXT_DIM    = "#B8B8C7"
 TEXT_MUTED  = "#5C6473"
-ACCENT      = "#3B82F6"   # electric blue
-ACCENT_HOV  = "#2563EB"
+ACCENT      = "#8B5CF6"   # electric blue
+ACCENT_HOV  = "#7C3AED"
 ACCENT_GLOW = "#60A5FA"
 PURPLE      = "#8B5CF6"
 SUCCESS     = "#10B981"
@@ -32,6 +45,10 @@ class AyanDownloaderPro(ctk.CTk):
     def __init__(self):
         super().__init__(fg_color=BG)
         self.title("Ayan Downloader Pro")
+        try:
+            self.iconbitmap(resource_path("assets/app.ico"))
+        except Exception as e:
+            print("Icon error:", e)
         self.geometry("1000x700")
         self.minsize(1000, 700)
         self._center()
@@ -58,12 +75,20 @@ class AyanDownloaderPro(ctk.CTk):
         header.pack(fill="x", padx=28, pady=(22, 6))
         header.pack_propagate(False)
         # Logo tile
-        logo = ctk.CTkFrame(header, width=56, height=56, corner_radius=16,
-                            fg_color=ACCENT, border_width=0)
-        logo.pack(side="left", padx=(0, 16))
-        logo.pack_propagate(False)
-        ctk.CTkLabel(logo, text="⚡", font=f(28, "bold"),
-                     text_color="#FFFFFF").pack(expand=True)
+        image = Image.open(resource_path("assets/logo.png"))
+
+        self.logo_img = ctk.CTkImage(
+            light_image=image,
+            dark_image=image,
+            size=(64, 64)
+        )
+
+        logo = ctk.CTkLabel(
+            header,
+            image=self.logo_img,
+            text=""
+        )
+        logo.pack(side="left", padx=(0, 18))
         text_wrap = ctk.CTkFrame(header, fg_color="transparent")
         text_wrap.pack(side="left", anchor="w")
         ctk.CTkLabel(text_wrap, text="AYAN DOWNLOADER PRO",
@@ -78,9 +103,20 @@ class AyanDownloaderPro(ctk.CTk):
         # Window pill (right side decorative)
         pill = ctk.CTkFrame(header, fg_color=SURFACE_2, corner_radius=999,
                             border_width=1, border_color=BORDER, height=34)
+        about_btn = ctk.CTkButton(header,
+                                 text="ℹ",
+                                 width=90,
+                                 height=34,
+                                 corner_radius=999,
+                                 font=f(12, "bold"),
+                                 fg_color=SURFACE_2,
+                                 hover_color=SURFACE_3,
+                                 text_color=TEXT,
+                                 command=self.show_about)
+        about_btn.pack(side="right", padx=(0, 10), pady=10)
         pill.pack(side="right", pady=10)
         ctk.CTkLabel(pill, text="●  Ready", font=f(12, "bold"),
-                     text_color=SUCCESS).pack(padx=14, pady=6)
+                     text_color=ACCENT).pack(padx=14, pady=6)
     # =================== MAIN CARD ===================
     def _build_main(self):
         scroll = ctk.CTkScrollableFrame(self, fg_color="transparent",
@@ -154,9 +190,19 @@ class AyanDownloaderPro(ctk.CTk):
 
         self.title_lbl.configure(text=info["title"])
 
-        self.meta_lbl.configure(
-            text=f'{info["channel"]} • {info["duration"]} sec • {info["views"]:,} views'
+        views = (
+            f'{info["views"]:,}'
+            if isinstance(info["views"], int)
+            else "N/A"
         )
+
+        duration = info["duration"] if info["duration"] else "N/A"
+        channel = info["channel"] or "Unknown"
+
+        self.meta_lbl.configure(
+            text=f"{channel} • {duration} sec • {views} views"
+        )
+
         for widget in self.chips.winfo_children():
             widget.destroy()
 
@@ -182,31 +228,33 @@ class AyanDownloaderPro(ctk.CTk):
             self.selected_quality = "bestaudio"
 
         else:
-            for quality in info["qualities"]:
+            for quality, format_id in info["qualities"].items():
                 chip = ctk.CTkFrame(
-                self.chips,
-                fg_color=SURFACE_3,
-                corner_radius=999,
-                border_width=1,
-                border_color=BORDER,
-                cursor="hand2"
+                    self.chips,
+                    fg_color=SURFACE_3,
+                    corner_radius=999,
+                    border_width=1,
+                    border_color=BORDER,
+                    cursor="hand2",
                 )
                 chip.pack(side="left", padx=(0, 6))
 
                 label = ctk.CTkLabel(
-                chip,
-                text=quality,
-                font=f(11, "bold"),
-                text_color=TEXT_DIM
+                    chip,
+                    text=quality,
+                    font=f(11, "bold"),
+                    text_color=TEXT_DIM,
                 )
                 label.pack(padx=10, pady=3)
 
-                chip.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
-                label.bind("<Button-1>", lambda e, q=quality: self.select_quality(q))
+                chip.bind("<Button-1>", lambda e, q=quality, f=format_id: self.select_quality(q, f))
+                label.bind("<Button-1>", lambda e, q=quality, f=format_id: self.select_quality(q, f))
 
                 self.quality_chips.append((chip, quality))
-        if info["qualities"]:
-            self.select_quality(info["qualities"][0])
+
+        if self.mode.get() != "audio" and info.get("qualities"):
+            first_quality, first_format = next(iter(info["qualities"].items()))
+            self.select_quality(first_quality, first_format)
 
         try:
             print("Loading thumbnail...")
@@ -225,6 +273,7 @@ class AyanDownloaderPro(ctk.CTk):
             self.after(0, lambda img=self.thumbnail: self.thumb_label.configure(
                 text="", image=img
             ))
+            
             print("Thumbnail applied")
         except Exception as e:
             print(f"Thumbnail Error: {e}")
@@ -246,9 +295,24 @@ class AyanDownloaderPro(ctk.CTk):
         wrap.pack_propagate(False)
         thumb = ctk.CTkFrame(wrap, width=180, height=104, corner_radius=12,
                              fg_color=ACCENT)
+        overlay = ctk.CTkFrame(
+            thumb,
+            width=46,
+            height=46,
+            corner_radius=23,
+            fg_color="#000000",
+        )
+        overlay.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(
+            overlay,
+            text="▶",
+            font=f(20, "bold"),
+            text_color="white",
+        ).pack(expand=True)
         thumb.pack(side="left", padx=12, pady=12)
         thumb.pack_propagate(False)
-        self.thumb_label = ctk.CTkLabel(thumb, text="", text_color="#FFFFFF")
+        self.thumb_label = ctk.CTkLabel(thumb, text="▶", text_color="#FFFFFF")
         self.thumb_label.pack(expand=True, fill="both")
         info = ctk.CTkFrame(wrap, fg_color="transparent")
         info.pack(side="left", fill="both", expand=True, padx=(6, 16), pady=14)
@@ -316,7 +380,7 @@ class AyanDownloaderPro(ctk.CTk):
             selected = card._value == self.mode.get()
             card.configure(
                 border_color=ACCENT if selected else BORDER,
-                fg_color="#16243F" if selected else SURFACE_2,
+                fg_color="#221733" if selected else SURFACE_2,
                 border_width=2 if selected else 1,
             )
             card._dot.configure(
@@ -427,7 +491,7 @@ class AyanDownloaderPro(ctk.CTk):
         bar.pack_propagate(False)
         ctk.CTkLabel(bar, text="●  Connected", font=f(11, "bold"),
                      text_color=SUCCESS).pack(side="left", padx=14)
-        ctk.CTkLabel(bar, text="v1.0  ·  Ayan Downloader",
+        ctk.CTkLabel(bar, text="v1.0.0  ·  Ayan Downloader Pro",
                      font=f(11), text_color=TEXT_MUTED).pack(side="right", padx=14)
     # =================== DEMO PROGRESS ===================
     def _open_folder(self):
@@ -445,27 +509,49 @@ class AyanDownloaderPro(ctk.CTk):
         self.eta_lbl.configure(text="ETA —")
         self.dl_btn.configure(state="normal")
     def _start_demo(self):
+        # Hide success card if it's visible
+        if self.success_card.winfo_ismapped():
+            self.success_card.pack_forget()
+            self.prog_card.pack(fill="x", pady=(20, 0))
+
+        # Reset progress UI
+        self.bar.set(0)
+        self.pct_lbl.configure(text="0%")
+        self.speed_lbl.configure(text="Speed --")
+        self.eta_lbl.configure(text="ETA --")
+        self.state_lbl.configure(text="Preparing...")
+
         self.dl_btn.configure(state="disabled")
+
         threading.Thread(target=self._run_demo, daemon=True).start()
+
     def _run_demo(self):
-        stages = [
-            ("Fetching Information…", 0, 8, 0.04),
-            ("Downloading Video", 8, 78, 0.025),
-            ("Processing Audio…", 78, 90, 0.05),
-            ("Merging Files…", 90, 100, 0.06),
-        ]
-        for label, a, b, delay in stages:
-            self.after(0, self.state_lbl.configure, {"text": label})
-            for p in range(a, b + 1):
-                self.after(0, self.bar.set, p / 100)
-                self.after(0, self.pct_lbl.configure, {"text": f"{p}%"})
-                self.after(0, self.speed_lbl.configure,
-                           {"text": f"Speed  {8 + (p % 9)}.{p % 10} MB/s"})
-                remaining = max(0, (100 - p) // 3)
-                self.after(0, self.eta_lbl.configure,
-                           {"text": f"ETA  00:{remaining:02d}"})
-                time.sleep(delay)
-        self.after(0, self._show_success)
+        from backend.downloader import Downloader
+
+        try:
+            downloader = Downloader(
+                url=self.url_var.get().strip(),
+                save_path=self.folder.get(),
+                format_id=getattr(self, "selected_format", "best"),
+                quality_name=getattr(self, "selected_quality", "MP3"),
+                mode=self.mode.get(),
+                progress_hook=self.download_progress,
+            )
+
+            downloader.download()
+
+            self.after(0, self._show_success)
+        except Exception as e:
+            error = str(e)
+            self.after(
+                0,
+                lambda: self.state_lbl.configure(text=f"Error: {error}")
+            )
+        finally:
+            self.after(
+                0,
+                lambda: self.dl_btn.configure(state="normal")
+            )
 
     def _show_success(self):
         self.state_lbl.configure(text="Completed")
@@ -473,11 +559,106 @@ class AyanDownloaderPro(ctk.CTk):
         self.success_card.pack(fill="x", pady=(20, 0))
         self.dl_btn.configure(state="normal")
 
-    def select_quality(self, quality):
+    def select_quality(self, quality, format_id):
         self.selected_quality = quality
+        self.selected_format = format_id
 
         for chip, value in self.quality_chips:
             if value == quality:
-                chip.configure(fg_color=ACCENT, border_color=ACCENT)
+                chip.configure(fg_color="#2B1D45", border_color=ACCENT)
             else:
                 chip.configure(fg_color=SURFACE_3, border_color=BORDER)
+    def download_progress(self, d):
+        if d["status"] == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate")
+            downloaded = d.get("downloaded_bytes", 0)
+
+            if total:
+                percent = downloaded / total
+
+                self.after(0, lambda: self.bar.set(percent))
+                self.after(0, lambda: self.pct_lbl.configure(text=f"{percent*100:.1f}%"))
+
+            speed = d.get("speed")
+            if speed:
+                self.after(
+                    0,
+                    lambda: self.speed_lbl.configure(
+                    text=f"Speed {speed/1024/1024:.2f} MB/s"
+                    ),
+                )
+
+            eta = d.get("eta")
+            if eta is not None:
+                self.after(
+                    0,
+                    lambda: self.eta_lbl.configure(text=f"ETA {eta}s"),
+                )
+
+            self.after(
+                0,
+                lambda: self.state_lbl.configure(text="Downloading..."),
+            )
+
+        elif d["status"] == "finished":
+            self.after(
+                0,
+                lambda: self.state_lbl.configure(text="Processing..."),
+            )
+
+    def show_about(self):
+        about = ctk.CTkToplevel(self)
+        about.title("About AyanDownloaderPro")
+        about.geometry("420x340")
+        about.resizable(False, False)
+        about.grab_set()
+
+        ctk.CTkLabel(
+            about,
+            text="AyanDownloaderPro",
+            font=f(24, "bold"),
+            text_color=ACCENT,
+        ).pack(pady=(20, 5))
+
+        ctk.CTkLabel(
+            about,
+            text="Version 1.0.0",
+            font=f(14),
+            text_color=TEXT_DIM,
+        ).pack()
+
+        ctk.CTkLabel(
+            about,
+            text="Developed by",
+            font=f(13),
+            text_color=TEXT_DIM,
+        ).pack(pady=(20, 2))
+
+        ctk.CTkLabel(
+            about,
+            text="Ayan Raza",
+            font=f(16, "bold"),
+            text_color=TEXT,
+        ).pack()
+
+        ctk.CTkLabel(
+            about,
+            text="Powered by\n• yt-dlp\n• FFmpeg\n• CustomTkinter",
+            justify="center",
+            font=f(13),
+            text_color=TEXT_DIM,
+        ).pack(pady=20)
+
+        ctk.CTkLabel(
+            about,
+            text="© 2026 AyanDownloaderPro",
+            font=f(11),
+            text_color=TEXT_MUTED,
+        ).pack()
+
+        ctk.CTkButton(
+            about,
+            text="Close",
+            width=120,
+            command=about.destroy,
+        ).pack(pady=20)
