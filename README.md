@@ -155,4 +155,3 @@ If you enjoy this project, consider giving it a ⭐ on GitHub.
 Made with ❤️ by **Ayan Raza**
 
 </div>
-<img width="1920" height="1020" alt="main" src="https://github.com/user-attachments/assets/8c1b4934-6ffc-4c22-a3f0-e0314a663be5" />
